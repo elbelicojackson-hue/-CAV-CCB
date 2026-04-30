@@ -1,0 +1,8 @@
+{
+  "name": "@hackert-ling/wiki-knowledge",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "description": "Local private wiki/knowledge base for HACKERT LING project"
+}
