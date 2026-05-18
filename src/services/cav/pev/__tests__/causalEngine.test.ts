@@ -37,11 +37,14 @@ describe('INTERVENTION_REGISTRY', () => {
     expect(supportsCausalInference('packer::diec')).toBe(true)
     expect(supportsCausalInference('packer::upx-test')).toBe(true)
     expect(supportsCausalInference('compiler::dnspy-probe')).toBe(true)
+    expect(supportsCausalInference('protocol::tshark')).toBe(true)
+    expect(supportsCausalInference('protocol::mitm-capture')).toBe(true)
+    expect(supportsCausalInference('protocol::strings-protocol-tokens')).toBe(true)
   })
 
   test('supportsCausalInference returns false for unregistered plans', () => {
     expect(supportsCausalInference('algorithm::ida-script-dump')).toBe(false)
-    expect(supportsCausalInference('protocol::tshark')).toBe(false)
+    expect(supportsCausalInference('family::strings-grep')).toBe(false)
   })
 
   test('every registered variant has required fields', () => {

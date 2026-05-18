@@ -148,6 +148,24 @@ export const INTERVENTION_REGISTRY: Readonly<Record<string, InterventionVariant>
     manipulatedVariable: 'dynamic linking (replaced with static binary)',
     expectedEffectIfCausal: 'breaks-confirm',
   },
+  'protocol::tshark': {
+    description: 'Re-run tshark with TLS SNI field zeroed out to test if protocol detection is causal',
+    interventionArgs: { command: 'tshark -r "$CAPTURE" -Y "tls.handshake.extensions_server_name==\"\" "' },
+    manipulatedVariable: 'TLS SNI extension presence',
+    expectedEffectIfCausal: 'breaks-confirm',
+  },
+  'protocol::mitm-capture': {
+    description: 'Replay flows with a known-legal HTTP request substituted to isolate protocol causation',
+    interventionArgs: { command: 'mitmdump -r "$CLEAN_FLOWS" --set console_eventlog_verbosity=info -n' },
+    manipulatedVariable: 'request payload (replaced with known-clean)',
+    expectedEffectIfCausal: 'breaks-confirm',
+  },
+  'protocol::strings-protocol-tokens': {
+    description: 'Grep for protocol tokens in a known-clean reference binary (no C2 traffic)',
+    interventionArgs: { pattern: 'HTTP/(?:1\\.0|1\\.1|2)|gRPC|MQTT|AMQP', targetPath: '$REFERENCE_CLEAN' },
+    manipulatedVariable: 'target binary (replaced with known-clean reference)',
+    expectedEffectIfCausal: 'breaks-confirm',
+  },
 } as const
 
 /* -------------------------------------------------------------------------- */

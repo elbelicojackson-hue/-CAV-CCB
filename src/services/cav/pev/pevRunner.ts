@@ -84,6 +84,12 @@ import type {
   ValidatorContext,
 } from './validator.js'
 import { judgeVerdict } from './verdict.js'
+import {
+  compareCausalVerdicts,
+  getInterventionVariant,
+  supportsCausalInference,
+  type CausalResult,
+} from './causalEngine.js'
 
 import type { ArenaProvider } from '../arena/providers.js'
 
@@ -572,6 +578,71 @@ async function executeToolCall(args: {
     verdict: verdict.verdict,
     round,
   })
+
+  // --- Causal intervention branch ---
+  // When the plan supports causal inference, run the intervention variant
+  // and compare verdicts to distinguish causation from correlation.
+  // This implements Pearl's do-calculus Level 2: P(Y | do(X)) ≠ P(Y | X).
+  const interventionVariant = getInterventionVariant(plan.id)
+  if (interventionVariant && verdict.verdict === 'confirms') {
+    // Only run intervention when the original confirms — if it already
+    // falsifies, causal analysis is unnecessary (causal-falsify is trivial).
+    let interventionStdout = ''
+    let interventionExitCode = -1
+    let interventionDurationMs = 0
+    try {
+      // Build intervention args: merge the intervention overrides on top
+      // of the original merged args.
+      const interventionMerged = {
+        ...mergedArgs,
+        ...interventionVariant.interventionArgs,
+      }
+      const result = await toolAdapter(plan, interventionMerged, signal)
+      interventionStdout = result.stdout
+      interventionExitCode = result.exitCode
+      interventionDurationMs = result.durationMs
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.debug(`[pev/runner] causal intervention threw: ${msg}`)
+    }
+
+    // Judge the intervention verdict using the same plan's regex patterns.
+    const interventionVerdict = judgeVerdict(plan, interventionStdout, interventionExitCode)
+
+    // Compare original vs intervention to produce a CausalResult.
+    const causalResult: CausalResult = compareCausalVerdicts(
+      verdict.verdict,
+      interventionVerdict.verdict,
+      interventionVariant,
+    )
+
+    // Record the intervention as a second evidence entry with a
+    // causal annotation in the digest. This gives the agent visibility
+    // into whether the evidence is causal or merely correlational.
+    const causalDigest = `[CAUSAL ${causalResult.causalVerdict} (strength=${causalResult.causalStrength})] ` +
+      `intervention: ${interventionVariant.manipulatedVariable}\n` +
+      digestStdout(interventionStdout)
+
+    const interventionAppend = appendEvidence(nextLedger, {
+      agentId,
+      round,
+      toolName: plan.tool,
+      toolArgs: redactSecrets({
+        ...mergedArgs,
+        ...interventionVariant.interventionArgs,
+        __causal_intervention: true,
+        __manipulated_variable: interventionVariant.manipulatedVariable,
+      }) as Record<string, unknown>,
+      outcome: outcomeForExitCode(interventionExitCode),
+      resultDigest: causalDigest,
+      testedHypothesis: action.hypothesis_id,
+      verdict: interventionVerdict.verdict,
+      durationMs: interventionDurationMs,
+    })
+    nextLedger = interventionAppend.ledger
+    // Intervention also consumes a budget slot.
+    nextLedger = decrementBudget(nextLedger, 1)
+  }
 
   return { events, ledger: nextLedger }
 }

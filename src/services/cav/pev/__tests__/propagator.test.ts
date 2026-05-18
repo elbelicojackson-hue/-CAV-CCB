@@ -581,8 +581,8 @@ describe('propagate — sub-hypothesis hint generation (R9-4)', () => {
     }
   })
 
-  test("terminal kind ('algorithm', 'anti-analysis', 'protocol') yields no hints", () => {
-    const cases: HypothesisKind[] = ['algorithm', 'anti-analysis', 'protocol']
+  test("terminal kind ('algorithm', 'anti-analysis') yields no hints", () => {
+    const cases: HypothesisKind[] = ['algorithm', 'anti-analysis']
     for (const kind of cases) {
       const ledger = ledgerWith([
         makeH({
@@ -679,7 +679,10 @@ describe('DERIVE_RULES — table contents', () => {
   test('terminal kinds map to empty arrays', () => {
     expect(DERIVE_RULES.algorithm).toEqual([])
     expect(DERIVE_RULES['anti-analysis']).toEqual([])
-    expect(DERIVE_RULES.protocol).toEqual([])
+  })
+
+  test('protocol derives capability (non-terminal)', () => {
+    expect(DERIVE_RULES.protocol).toEqual(['capability'])
   })
 
   test('packer derives compiler + capability', () => {

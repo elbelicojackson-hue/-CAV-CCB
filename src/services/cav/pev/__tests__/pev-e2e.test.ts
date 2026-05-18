@@ -463,8 +463,10 @@ describe('runPev — end-to-end happy path', () => {
     // E1 must be in H2's evidence trail.
     expect(h2?.evidenceTrail).toContain('E1')
 
-    // 6) Tool budget decreased by exactly 1 (one tool call total).
-    expect(finalLedger.toolBudgetRemaining).toBe(24 - 1)
+    // 6) Tool budget decreased: original packer::diec (1) + causal
+    //    intervention (1, since packer::diec is in INTERVENTION_REGISTRY
+    //    and the original verdict was 'confirms') = 2 slots consumed.
+    expect(finalLedger.toolBudgetRemaining).toBe(24 - 2)
   })
 
   test('parse-stats counters reflect L1 hits across rounds', async () => {

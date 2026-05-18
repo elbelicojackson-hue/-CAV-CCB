@@ -54,6 +54,7 @@
 import type { Hypothesis, SharedLedger, ToolEvidence } from './ledger.js'
 import type { HypothesisId, HypothesisKind, Verdict } from './protocol.js'
 import type { AgentDescriptor } from './scheduler.js'
+import { analyzeCommBound } from './commBound.js'
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -127,7 +128,7 @@ export const DERIVE_RULES: Readonly<
   algorithm: [],
   'anti-analysis': [],
   capability: ['protocol'],
-  protocol: [],
+  protocol: ['capability'],
 } as const
 
 /* -------------------------------------------------------------------------- */
@@ -136,10 +137,12 @@ export const DERIVE_RULES: Readonly<
 
 /**
  * Hard cap on `newEvidenceForMe` and `newHypothesisFromPeer` per agent.
- * Pinned to 5 (R9-6 default). Bigger values would just waste prompt
- * tokens — agents only ever look at the top of the list.
+ * This is the DEFAULT value; the actual cap is dynamically computed from
+ * the communication lower bound (Theorem 1) via `analyzeCommBound`.
+ * When urgency is high, the adaptive bandwidth expands up to 12 to
+ * accelerate convergence toward the theoretical floor.
  */
-const MAX_INBOX_ITEMS = 5
+const DEFAULT_MAX_INBOX_ITEMS = 5
 
 /**
  * Maximum hypothesis-id depth (`H1.2.3.4`). Mirrors the schema regex in
@@ -374,6 +377,13 @@ export function propagate(
   // Step 6 — sort + cap. Stable-sort by verdict priority preserves
   // ledger insertion order within a verdict bucket, which is convenient
   // for tests and for agents reading the inbox top-to-bottom.
+  //
+  // Adaptive bandwidth (Theorem 1): when urgency is high, expand the
+  // inbox cap to increase effective channel capacity B, pushing down
+  // the communication lower bound R_min.
+  const commAnalysis = analyzeCommBound(ledger, agents.length, currentRound)
+  const maxInboxItems = commAnalysis.adaptiveBandwidth
+
   const finalInboxes = new Map<string, AgentInbox>()
   for (const [agentId, inbox] of inboxes) {
     const sortedEvidence = [...inbox.newEvidenceForMe].sort((a, b) => {
@@ -381,10 +391,10 @@ export function propagate(
       const pb = VERDICT_PRIORITY[b.verdict] ?? 99
       return pa - pb
     })
-    const cappedEvidence = sortedEvidence.slice(0, MAX_INBOX_ITEMS)
+    const cappedEvidence = sortedEvidence.slice(0, maxInboxItems)
     const cappedHypotheses = inbox.newHypothesisFromPeer.slice(
       0,
-      MAX_INBOX_ITEMS,
+      maxInboxItems,
     )
 
     const finalised: AgentInbox = {

@@ -79,6 +79,27 @@ export function binaryEntropy(p: number): number {
 }
 
 /**
+ * Multinomial (Shannon) entropy H(p₁, p₂, ..., pₖ) = -Σ pᵢ·log₂(pᵢ).
+ *
+ * Generalises binaryEntropy to k-ary hypothesis spaces. When the input
+ * has exactly 2 elements summing to 1, this degenerates to binaryEntropy.
+ *
+ * @param probs  Array of probabilities. Must sum to ~1 (tolerance 1e-6).
+ *               Values ≤ 0 are skipped (0·log₂(0) = 0 by convention).
+ * @returns      Entropy in bits. Returns 0 for empty/degenerate inputs.
+ */
+export function multinomialEntropy(probs: readonly number[]): number {
+  if (probs.length === 0) return 0
+  let entropy = 0
+  for (const p of probs) {
+    if (p <= 0) continue
+    if (p >= 1) continue // single certainty → zero entropy contribution from others
+    entropy -= p * Math.log2(p)
+  }
+  return Math.max(0, entropy)
+}
+
+/**
  * Compute the Expected Information Gain for a (hypothesis, plan) pair.
  *
  * @param hypothesis  The hypothesis to potentially test

@@ -8,6 +8,7 @@ import {
   binaryEntropy,
   computeEIG,
   computeExplorationBonus,
+  multinomialEntropy,
   rankCandidates,
   type EIGCandidate,
 } from '../eigEngine.js'
@@ -288,5 +289,71 @@ describe('PBT — EIG properties', () => {
       ),
       { numRuns: 200 },
     )
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/* multinomialEntropy                                                         */
+/* -------------------------------------------------------------------------- */
+
+describe('multinomialEntropy', () => {
+  test('empty array → 0', () => {
+    expect(multinomialEntropy([])).toBe(0)
+  })
+
+  test('single certainty [1.0] → 0', () => {
+    expect(multinomialEntropy([1.0])).toBe(0)
+  })
+
+  test('binary uniform [0.5, 0.5] → 1.0 (matches binaryEntropy)', () => {
+    expect(multinomialEntropy([0.5, 0.5])).toBeCloseTo(1.0, 5)
+    expect(multinomialEntropy([0.5, 0.5])).toBeCloseTo(binaryEntropy(0.5), 5)
+  })
+
+  test('binary [0.3, 0.7] matches binaryEntropy(0.3)', () => {
+    expect(multinomialEntropy([0.3, 0.7])).toBeCloseTo(binaryEntropy(0.3), 5)
+  })
+
+  test('ternary uniform [1/3, 1/3, 1/3] → log₂(3) ≈ 1.585', () => {
+    const p = 1 / 3
+    expect(multinomialEntropy([p, p, p])).toBeCloseTo(Math.log2(3), 5)
+  })
+
+  test('quaternary uniform [0.25, 0.25, 0.25, 0.25] → 2.0 bits', () => {
+    expect(multinomialEntropy([0.25, 0.25, 0.25, 0.25])).toBeCloseTo(2.0, 5)
+  })
+
+  test('skewed distribution has less entropy than uniform', () => {
+    const uniform = multinomialEntropy([0.25, 0.25, 0.25, 0.25])
+    const skewed = multinomialEntropy([0.7, 0.1, 0.1, 0.1])
+    expect(skewed).toBeLessThan(uniform)
+  })
+
+  test('handles zero probabilities gracefully (0·log₂(0) = 0)', () => {
+    // [0.5, 0.5, 0] should equal [0.5, 0.5]
+    expect(multinomialEntropy([0.5, 0.5, 0])).toBeCloseTo(
+      multinomialEntropy([0.5, 0.5]),
+      5,
+    )
+  })
+
+  test('result is always non-negative', () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.float({ min: 0, max: 1, noNaN: true }), { minLength: 1, maxLength: 8 }),
+        probs => {
+          return multinomialEntropy(probs) >= 0
+        },
+      ),
+      { numRuns: 200 },
+    )
+  })
+
+  test('entropy increases with number of equally-likely outcomes', () => {
+    const h2 = multinomialEntropy([0.5, 0.5])
+    const h3 = multinomialEntropy([1 / 3, 1 / 3, 1 / 3])
+    const h4 = multinomialEntropy([0.25, 0.25, 0.25, 0.25])
+    expect(h3).toBeGreaterThan(h2)
+    expect(h4).toBeGreaterThan(h3)
   })
 })
