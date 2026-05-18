@@ -30,6 +30,8 @@ export type AgentStatus =
 type Props = {
   readonly providers: readonly { id: string; displayName: string }[]
   readonly statuses: ReadonlyMap<string, AgentStatus>
+  /** Optional EIG scores per agent (from scheduler directive). */
+  readonly eigScores?: ReadonlyMap<string, number>
 }
 
 /* -------------------------------------------------------------------------- */
@@ -77,7 +79,7 @@ function renderStatus(st: AgentStatus | undefined): {
 /* -------------------------------------------------------------------------- */
 
 export function AgentStatusBar(props: Props): React.ReactNode {
-  const { providers, statuses } = props
+  const { providers, statuses, eigScores } = props
 
   if (providers.length === 0) {
     return (
@@ -94,7 +96,9 @@ export function AgentStatusBar(props: Props): React.ReactNode {
       {providers.map(p => {
         const st = statuses.get(p.id)
         const r = renderStatus(st)
-        const label = `${r.glyph} ${p.displayName}(${p.id}) · ${r.text}`
+        const eigVal = eigScores?.get(p.id)
+        const eigSuffix = eigVal != null ? ` · EIG=${eigVal.toFixed(3)}b` : ''
+        const label = `${r.glyph} ${p.displayName}(${p.id}) · ${r.text}${eigSuffix}`
         if (r.color) {
           return (
             <Text key={p.id} color={r.color} dimColor={r.dim}>

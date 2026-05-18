@@ -81,6 +81,7 @@ export function PevSession({
   const [agentStatuses, setAgentStatuses] = useState<Map<string, AgentStatus>>(
     () => new Map(providers.map(p => [p.id, { status: 'idle' as const }])),
   )
+  const [eigScores, setEigScores] = useState<Map<string, number>>(new Map())
   const [persistedPath, setPersistedPath] = useState<string | null>(null)
 
   // ─── Derived ────────────────────────────────────────────────────────
@@ -303,6 +304,7 @@ export function PevSession({
           displayName: p.displayName,
         }))}
         statuses={agentStatuses}
+        eigScores={eigScores}
       />
 
       {/* Footer */}
@@ -394,6 +396,19 @@ function buildSummary(args: SummaryArgs): string {
     for (const ev of finalLedger.evidenceLog) {
       lines.push(`- \`${ev.id}\` [${ev.verdict}] round=${ev.round} agent=${ev.agentId} tool=${ev.toolName} tested=${ev.testedHypothesis}`)
     }
+    lines.push('')
+  }
+
+  // Information Efficiency (R6 of EIG spec)
+  const toolCalls = finalLedger.evidenceLog.length
+  if (toolCalls > 0) {
+    const resolvedCount = counts.evidence + counts.falsified
+    const efficiency = resolvedCount / toolCalls
+    lines.push('## Information Efficiency')
+    lines.push('')
+    lines.push(`- tool calls: ${toolCalls}`)
+    lines.push(`- hypotheses resolved (evidence + falsified): ${resolvedCount}`)
+    lines.push(`- efficiency ratio: ${efficiency.toFixed(2)} resolved/call`)
     lines.push('')
   }
 
