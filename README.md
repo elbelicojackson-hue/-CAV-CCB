@@ -197,26 +197,16 @@ Property-Based Tests (fast-check, 200 runs each):
 - Property 10: 自反不变性（无自我反馈）
 - Property 11: reducer 不可变性
 
-## 截图展示
+## 测试场景展示
 
-<!-- 把你的截图放到 docs/images/ 目录，然后取消下面的注释 -->
+### 测试场景 1
+![测试场景 1](docs/images/test-scenario-1.png)
 
-<!-- ### PEV 运行界面 -->
-<!-- ![PEV Session UI](docs/images/pev-session-ui.png) -->
+### 测试场景 2
+![测试场景 2](docs/images/test-scenario-2.png)
 
-<!-- ### 假设树实时渲染 -->
-<!-- ![Hypothesis Tree](docs/images/hypothesis-tree.png) -->
-
-<!-- ### 证据日志 + Verdict 着色 -->
-<!-- ![Evidence Log](docs/images/evidence-log.png) -->
-
-<!-- ### 与单模型对比效果 -->
-<!-- ![Comparison](docs/images/comparison.png) -->
-
-<!-- ### 最终 .pev.json 审计轨迹 -->
-<!-- ![PEV JSON](docs/images/pev-json-output.png) -->
-
-> 💡 **如何添加截图**: 将 PNG/JPG 文件放入 `docs/images/` 目录，然后取消上面对应行的 `<!-- -->` 注释即可显示。
+### 测试场景 3
+![测试场景 3](docs/images/test-scenario-3.png)
 
 ---
 
