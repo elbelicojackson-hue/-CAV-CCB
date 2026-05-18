@@ -1,0 +1,54 @@
+PROPRIETARY LICENSE — CAV/CCB Algorithm Suite
+
+Copyright (c) 2024-2026 elbelicojackson (GitHub: elbelicojackson-hue)
+All Rights Reserved.
+
+NOTICE OF PROPRIETARY RIGHTS
+=============================
+
+The underlying algorithms, protocols, and technical implementations in this
+repository — including but not limited to:
+
+  - CAV (Calibrated Adversarial Verification) consensus protocol
+  - CCB (Claude Code Best) multi-agent orchestration framework
+  - PEV (Plan-Execute-Verify) hypothesis-driven execution loop
+  - SharedLedger immutable reducer architecture
+  - Cross-agent Propagator and Scheduler algorithms
+  - VerdictEngine regex-based judgement system
+  - Three-layer fault-tolerant parser pipeline
+  - Canonical Test Plans table and ToolPlan schema
+  - Hypothesis Bank typed state machine (8-kind taxonomy)
+  - Stale cascade propagation algorithm
+  - ∇H ≤ 0 fixed-point convergence detection
+
+— are the exclusive intellectual property of the copyright holder.
+
+TERMS
+=====
+
+1. NO USE WITHOUT PERMISSION. You may NOT use, copy, modify, merge,
+   publish, distribute, sublicense, sell, or create derivative works from
+   this software or any portion thereof without explicit prior written
+   consent from the copyright holder.
+
+2. NO COMMERCIAL USE. Commercial use of any kind is strictly prohibited
+   without a separate commercial license agreement.
+
+3. NO REVERSE ENGINEERING. You may NOT reverse engineer, decompile, or
+   disassemble the algorithms or protocols described herein for the
+   purpose of reimplementation in another project.
+
+4. VIEWING ONLY. This repository is made publicly visible for
+   demonstration, portfolio, and academic review purposes ONLY. Public
+   visibility does NOT constitute a grant of any license.
+
+5. CONTACT FOR PERMISSION. To request permission to use this software
+   or its algorithms, contact the copyright holder via GitHub:
+   https://github.com/elbelicojackson-hue
+
+6. NO WARRANTY. THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+   ANY KIND, EXPRESS OR IMPLIED. THE COPYRIGHT HOLDER SHALL NOT BE LIABLE
+   FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OR
+   INABILITY TO USE THIS SOFTWARE.
+
+Any violation of these terms may result in legal action.
