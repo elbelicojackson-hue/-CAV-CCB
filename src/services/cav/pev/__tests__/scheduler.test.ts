@@ -263,7 +263,7 @@ describe('schedule — confidence ranking', () => {
       makeH({ id: 'H2', confidence: 0.9, ownerAgent: 'agent-A' }),
       makeH({ id: 'H3', confidence: 0.5, ownerAgent: 'agent-A' }),
     ])
-    const { perAgentDirective } = schedule(ledger, [AGENT_A], 1)
+    const { perAgentDirective } = schedule(ledger, [AGENT_A], 1, undefined, 'greedy-confidence')
     expect(perAgentDirective.get('agent-A')!.suggestedHypothesisId).toBe('H2')
   })
 
@@ -273,7 +273,7 @@ describe('schedule — confidence ranking', () => {
       makeH({ id: 'H1', confidence: 0.7, ownerAgent: 'agent-A' }),
       makeH({ id: 'H2', confidence: 0.7, ownerAgent: 'agent-A' }),
     ])
-    const { perAgentDirective } = schedule(ledger, [AGENT_A], 1)
+    const { perAgentDirective } = schedule(ledger, [AGENT_A], 1, undefined, 'greedy-confidence')
     expect(perAgentDirective.get('agent-A')!.suggestedHypothesisId).toBe('H1')
   })
 })

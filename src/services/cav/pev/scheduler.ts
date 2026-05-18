@@ -36,6 +36,7 @@
  */
 
 import { getToolPlansForKind, type ToolPlan } from './canonicalTests.js'
+import { computeEIG, computeExplorationBonus, rankCandidates, DEFAULT_EXPLORATION_WEIGHT, type EIGCandidate } from './eigEngine.js'
 import type { Hypothesis, SharedLedger } from './ledger.js'
 import type { HypothesisKind } from './protocol.js'
 
@@ -82,7 +83,16 @@ export type ScheduleDirective = {
   readonly suggestedHypothesisId?: string
   readonly suggestedToolPlanId?: string
   readonly hint?: string
+  /** EIG score in bits (only present when strategy='eig'). */
+  readonly eig?: number
 }
+
+/**
+ * Scheduler strategy selector. Default is 'eig' (information-theoretic
+ * optimal). 'greedy-confidence' is the legacy behaviour for backward
+ * compatibility.
+ */
+export type SchedulerStrategy = 'greedy-confidence' | 'eig'
 
 /**
  * The 4-dimension PEV budget object. Defined locally (rather than
@@ -222,6 +232,8 @@ export function schedule(
   currentRound: number,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _budget?: PevBudget,
+  strategy: SchedulerStrategy = 'eig',
+  explorationWeight: number = DEFAULT_EXPLORATION_WEIGHT,
 ): SchedulerResult {
   const perAgentDirective = new Map<string, ScheduleDirective>()
   let observerCount = 0
@@ -249,33 +261,80 @@ export function schedule(
       continue
     }
 
-    const candidate = pickHighestConfidence(fresh)
-    // `fresh` is non-empty here, so candidate is always defined; keep the
-    // explicit guard to satisfy strict TS narrowing.
-    if (!candidate) {
-      perAgentDirective.set(agent.id, { hint: 'all touched, observe' })
-      observerCount += 1
-      continue
-    }
+    // --- Strategy fork ---
+    if (strategy === 'eig') {
+      // EIG strategy: evaluate all (H, plan) pairs and pick the best
+      const eigCandidates: EIGCandidate[] = []
+      for (const h of fresh) {
+        const plans = getToolPlansForKind(h.kind)
+        for (const plan of plans) {
+          // Skip already-tested combinations
+          const alreadyTested = ledger.evidenceLog.some(
+            ev => ev.testedHypothesis === h.id && ev.toolName === plan.tool,
+          )
+          if (alreadyTested) continue
+          const eigResult = computeEIG(h, plan, ledger)
+          const bonus = computeExplorationBonus(h, plan, ledger, explorationWeight)
+          eigCandidates.push({
+            hypothesis: h,
+            plan,
+            eig: eigResult.eig,
+            explorationBonus: bonus,
+            total: eigResult.eig + bonus,
+            breakdown: eigResult.breakdown,
+          })
+        }
+      }
 
-    const plan = findUntestedPlan(candidate, ledger)
-    if (plan === undefined) {
+      if (eigCandidates.length === 0) {
+        perAgentDirective.set(agent.id, {
+          suggestedHypothesisId: fresh[0]?.id,
+          hint: 'all plans exhausted',
+        })
+        continue
+      }
+
+      const ranked = rankCandidates(eigCandidates)
+      const best = ranked[0]!
+
+      if (best.total < 0.01) {
+        perAgentDirective.set(agent.id, {
+          suggestedHypothesisId: best.hypothesis.id,
+          hint: 'low-information: consider declare_done or mutate',
+          eig: best.eig,
+        })
+        observerCount += 1
+        continue
+      }
+
+      perAgentDirective.set(agent.id, {
+        suggestedHypothesisId: best.hypothesis.id,
+        suggestedToolPlanId: best.plan.id,
+        eig: best.eig,
+      })
+    } else {
+      // Legacy greedy-confidence strategy
+      const candidate = pickHighestConfidence(fresh)
+      if (!candidate) {
+        perAgentDirective.set(agent.id, { hint: 'all touched, observe' })
+        observerCount += 1
+        continue
+      }
+
+      const plan = findUntestedPlan(candidate, ledger)
+      if (plan === undefined) {
+        perAgentDirective.set(agent.id, {
+          suggestedHypothesisId: candidate.id,
+          hint: 'all plans exhausted',
+        })
+        continue
+      }
+
       perAgentDirective.set(agent.id, {
         suggestedHypothesisId: candidate.id,
-        hint: 'all plans exhausted',
+        suggestedToolPlanId: plan.id,
       })
-      // NOTE: this is NOT counted as an observer for stall-guard purposes
-      // because the agent is being told "we know what to test but ran out
-      // of plans" — semantically distinct from "nothing for you to do".
-      // The runner / propagator can still surface evidence to push it
-      // toward `mutate` or `declare_done`.
-      continue
     }
-
-    perAgentDirective.set(agent.id, {
-      suggestedHypothesisId: candidate.id,
-      suggestedToolPlanId: plan.id,
-    })
   }
 
   const stallGuardWarning =
