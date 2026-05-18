@@ -123,7 +123,7 @@ describe('compareCausalVerdicts', () => {
 /* -------------------------------------------------------------------------- */
 
 describe('applyCausalBoost', () => {
-  test('plan with intervention gets 1.5× EIG boost', () => {
+  test('plan with intervention gets 1.5× EIG boost (legacy 2-arg)', () => {
     const boosted = applyCausalBoost(0.5, 'packer::diec')
     expect(boosted).toBeCloseTo(0.75, 5)
   })
@@ -135,6 +135,118 @@ describe('applyCausalBoost', () => {
 
   test('boost of 0 EIG is still 0', () => {
     expect(applyCausalBoost(0, 'packer::diec')).toBe(0)
+  })
+})
+
+/* -------------------------------------------------------------------------- */
+/* applyCausalBoost — ledger-aware (dynamic) boost                            */
+/* -------------------------------------------------------------------------- */
+
+describe('applyCausalBoost (ledger-aware)', () => {
+  // Local imports for the ledger-construction helpers.
+  // These are deliberately scoped inside the describe block to keep the
+  // top-of-file import list tidy.
+  const { createEmptyLedger, appendEvidence } = require('../ledger.js') as
+    typeof import('../ledger.js')
+
+  function makeLedgerWithInterventionEvidence(rows: Array<{
+    planId: string
+    causalVerdict: 'causal-confirm' | 'correlation-only' | 'causal-falsify' | 'inconclusive'
+    causalStrength: number
+  }>) {
+    let ledger = createEmptyLedger(24)
+    for (const r of rows) {
+      ledger = appendEvidence(ledger, {
+        agentId: 'A',
+        round: 0,
+        toolName: 'ReverseCli',
+        toolArgs: {},
+        outcome: 'success',
+        resultDigest: '',
+        testedHypothesis: 'H1',
+        verdict: 'confirms',
+        durationMs: 1,
+        planId: r.planId,
+        isCausalIntervention: true,
+        causalVerdict: r.causalVerdict,
+        causalStrength: r.causalStrength,
+      }).ledger
+    }
+    return ledger
+  }
+
+  test('no intervention history → optimistic 1.5× boost', () => {
+    const ledger = createEmptyLedger(24)
+    const boosted = applyCausalBoost(0.5, 'packer::diec', ledger)
+    expect(boosted).toBeCloseTo(0.75, 5)
+  })
+
+  test('100% causal-confirm history → full 1.5× boost', () => {
+    const ledger = makeLedgerWithInterventionEvidence([
+      { planId: 'packer::diec', causalVerdict: 'causal-confirm', causalStrength: 1 },
+      { planId: 'packer::diec', causalVerdict: 'causal-confirm', causalStrength: 1 },
+    ])
+    const boosted = applyCausalBoost(0.5, 'packer::diec', ledger)
+    expect(boosted).toBeCloseTo(0.75, 5)
+  })
+
+  test('100% correlation-only history → no boost (1.0×)', () => {
+    const ledger = makeLedgerWithInterventionEvidence([
+      { planId: 'packer::diec', causalVerdict: 'correlation-only', causalStrength: 0 },
+      { planId: 'packer::diec', causalVerdict: 'correlation-only', causalStrength: 0 },
+    ])
+    const boosted = applyCausalBoost(0.5, 'packer::diec', ledger)
+    expect(boosted).toBeCloseTo(0.5, 5)
+  })
+
+  test('50/50 causal-confirm vs correlation-only → 1.25× boost', () => {
+    const ledger = makeLedgerWithInterventionEvidence([
+      { planId: 'packer::diec', causalVerdict: 'causal-confirm', causalStrength: 1 },
+      { planId: 'packer::diec', causalVerdict: 'correlation-only', causalStrength: 0 },
+    ])
+    const boosted = applyCausalBoost(0.5, 'packer::diec', ledger)
+    // 1 + 0.5 × 0.5 = 1.25 multiplier
+    expect(boosted).toBeCloseTo(0.625, 5)
+  })
+
+  test('history for a different plan is ignored', () => {
+    const ledger = makeLedgerWithInterventionEvidence([
+      // History for upx-test, not diec
+      { planId: 'packer::upx-test', causalVerdict: 'correlation-only', causalStrength: 0 },
+      { planId: 'packer::upx-test', causalVerdict: 'correlation-only', causalStrength: 0 },
+    ])
+    // Asking about diec — no diec history, so optimistic 1.5×
+    const boosted = applyCausalBoost(0.5, 'packer::diec', ledger)
+    expect(boosted).toBeCloseTo(0.75, 5)
+  })
+
+  test('non-intervention evidence is ignored', () => {
+    let ledger = createEmptyLedger(24)
+    // Append a regular (non-intervention) evidence row for the same plan
+    ledger = appendEvidence(ledger, {
+      agentId: 'A',
+      round: 0,
+      toolName: 'ReverseCli',
+      toolArgs: {},
+      outcome: 'success',
+      resultDigest: '',
+      testedHypothesis: 'H1',
+      verdict: 'confirms',
+      durationMs: 1,
+      planId: 'packer::diec',
+      // isCausalIntervention NOT set → this is the original, not the intervention
+    }).ledger
+    // Should still be 1.5× (no intervention rows yet)
+    const boosted = applyCausalBoost(0.5, 'packer::diec', ledger)
+    expect(boosted).toBeCloseTo(0.75, 5)
+  })
+
+  test('plan without intervention support → no boost regardless of ledger', () => {
+    const ledger = makeLedgerWithInterventionEvidence([
+      { planId: 'packer::diec', causalVerdict: 'causal-confirm', causalStrength: 1 },
+    ])
+    const boosted = applyCausalBoost(0.5, 'algorithm::ida-script-dump', ledger)
+    expect(boosted).toBe(0.5)
   })
 })
 

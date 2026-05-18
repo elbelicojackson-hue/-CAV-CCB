@@ -38,7 +38,12 @@
 
 import type { Verdict } from './protocol.js'
 import type { ToolPlan } from './canonicalTests.js'
-import type { Hypothesis } from './ledger.js'
+import type { CausalVerdict, SharedLedger } from './ledger.js'
+
+// Re-export CausalVerdict so existing import paths through causalEngine
+// keep working. The canonical declaration lives in ledger.ts to break
+// what would otherwise be a circular type import.
+export type { CausalVerdict } from './ledger.js'
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -53,12 +58,11 @@ import type { Hypothesis } from './ledger.js'
  *     (the hypothesis may be true but for a DIFFERENT reason)
  *   - `causal-falsify`: the hypothesis is false regardless
  *   - `inconclusive`: can't determine causality from these results
+ *
+ * Note: the canonical type lives in `ledger.ts` (re-exported above) so
+ * `ToolEvidence` can carry it as a structural field without a circular
+ * type import.
  */
-export type CausalVerdict =
-  | 'causal-confirm'
-  | 'correlation-only'
-  | 'causal-falsify'
-  | 'inconclusive'
 
 /**
  * Result of a causal comparison between original and intervention runs.
@@ -287,21 +291,65 @@ export function compareCausalVerdicts(
 /**
  * Compute the EIG boost for a plan that supports causal inference.
  *
- * Plans with intervention variants are MORE informative because they
- * can distinguish causation from correlation — this is strictly more
- * information than a single correlational run. We boost their EIG by
- * a multiplicative factor.
+ * Pearl's Causal Hierarchy Level 2 says interventional information is
+ * strictly more valuable than associational information — but ONLY
+ * when interventions actually distinguish causation from correlation.
+ * A plan that has an intervention variant in the registry but, when
+ * historically applied, has yielded mostly `correlation-only` results
+ * is in practice no more informative than a vanilla correlational run.
+ *
+ * Algorithm:
+ *   1. Plans NOT in the intervention registry → `baseEig` unchanged.
+ *   2. Plans in the registry with NO historical intervention evidence
+ *      yet → optimistic boost of 1.5× (we don't know better; trust the
+ *      registry author's intent).
+ *   3. Plans with ≥ 1 historical intervention evidence rows → boost is
+ *      linearly interpolated between 1.0× and 1.5× based on the
+ *      observed `causalFraction = causal-confirm count / total`:
+ *        boost = 1.0 + 0.5 × causalFraction
+ *      i.e. a plan that has been 100% causal in history gets 1.5×, a
+ *      plan that has been 0% causal (always `correlation-only`) gets
+ *      1.0× (no boost), and intermediate ratios scale linearly.
+ *
+ * Backward compatibility: when called without `ledger` (legacy 2-arg
+ * signature), falls back to the old static 1.5× behaviour for any
+ * registered plan. This keeps existing tests + downstream callers
+ * working until they migrate.
  *
  * @param baseEig The EIG computed by eigEngine.ts for the original plan
- * @param planId The plan id to check for causal support
- * @returns Boosted EIG (original × causalMultiplier if supported)
+ * @param planId  The plan id to check for causal support
+ * @param ledger  Optional ledger snapshot for history-aware boost
+ * @returns Boosted EIG (in [baseEig, baseEig × 1.5])
  */
-export function applyCausalBoost(baseEig: number, planId: string): number {
+export function applyCausalBoost(
+  baseEig: number,
+  planId: string,
+  ledger?: SharedLedger,
+): number {
   if (!supportsCausalInference(planId)) return baseEig
-  // Causal plans are 1.5× more informative because they can
-  // distinguish correlation from causation (2 bits of information
-  // vs 1 bit from a single correlational run).
-  return baseEig * 1.5
+
+  // Legacy / no-history path: trust the registry, full boost.
+  if (!ledger) return baseEig * 1.5
+
+  // Scan the evidence log for past intervention rows of this plan.
+  let causalConfirmCount = 0
+  let totalInterventionCount = 0
+  for (const ev of ledger.evidenceLog) {
+    if (!ev.isCausalIntervention) continue
+    if (ev.planId !== planId) continue
+    totalInterventionCount += 1
+    if (ev.causalVerdict === 'causal-confirm') {
+      causalConfirmCount += 1
+    }
+  }
+
+  // No history → optimistic full boost (same as legacy path).
+  if (totalInterventionCount === 0) return baseEig * 1.5
+
+  // History exists → boost scales with the empirical causal fraction.
+  const causalFraction = causalConfirmCount / totalInterventionCount
+  const multiplier = 1.0 + 0.5 * causalFraction
+  return baseEig * multiplier
 }
 
 /**

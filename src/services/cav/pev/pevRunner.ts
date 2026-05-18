@@ -566,6 +566,7 @@ async function executeToolCall(args: {
     testedHypothesis: action.hypothesis_id,
     verdict: verdict.verdict,
     durationMs,
+    planId: plan.id,
   })
   let nextLedger = append.ledger
   // R6-1 budget bookkeeping — every executed tool_call consumes one slot.
@@ -616,9 +617,12 @@ async function executeToolCall(args: {
       interventionVariant,
     )
 
-    // Record the intervention as a second evidence entry with a
-    // causal annotation in the digest. This gives the agent visibility
-    // into whether the evidence is causal or merely correlational.
+    // Record the intervention as a second evidence entry. Causal
+    // metadata is now first-class structured data on the evidence row
+    // (planId, isCausalIntervention, causalVerdict, causalStrength,
+    // manipulatedVariable) — agents and the scheduler should read these
+    // fields rather than parsing the digest string. The `[CAUSAL ...]`
+    // prefix in the digest is preserved purely for human-readable audit.
     const causalDigest = `[CAUSAL ${causalResult.causalVerdict} (strength=${causalResult.causalStrength})] ` +
       `intervention: ${interventionVariant.manipulatedVariable}\n` +
       digestStdout(interventionStdout)
@@ -630,14 +634,17 @@ async function executeToolCall(args: {
       toolArgs: redactSecrets({
         ...mergedArgs,
         ...interventionVariant.interventionArgs,
-        __causal_intervention: true,
-        __manipulated_variable: interventionVariant.manipulatedVariable,
       }) as Record<string, unknown>,
       outcome: outcomeForExitCode(interventionExitCode),
       resultDigest: causalDigest,
       testedHypothesis: action.hypothesis_id,
       verdict: interventionVerdict.verdict,
       durationMs: interventionDurationMs,
+      planId: plan.id,
+      isCausalIntervention: true,
+      causalVerdict: causalResult.causalVerdict,
+      causalStrength: causalResult.causalStrength,
+      manipulatedVariable: interventionVariant.manipulatedVariable,
     })
     nextLedger = interventionAppend.ledger
     // Intervention also consumes a budget slot.

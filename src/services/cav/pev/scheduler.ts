@@ -278,7 +278,7 @@ export function schedule(
           if (alreadyTested) continue
           const eigResult = computeEIG(h, plan, ledger)
           const bonus = computeExplorationBonus(h, plan, ledger, explorationWeight)
-          const boostedEig = applyCausalBoost(eigResult.eig, plan.id)
+          const boostedEig = applyCausalBoost(eigResult.eig, plan.id, ledger)
           eigCandidates.push({
             hypothesis: h,
             plan,

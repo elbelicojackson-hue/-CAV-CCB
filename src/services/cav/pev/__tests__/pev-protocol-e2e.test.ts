@@ -357,9 +357,28 @@ describe('runPev — protocol hypothesis E2E', () => {
     // Gap 2 validation: causal intervention should have fired for
     // protocol::tshark (since it's in INTERVENTION_REGISTRY and the
     // original verdict was 'confirms'). This produces a SECOND evidence
-    // entry for H1.1 with the intervention annotation.
+    // entry for H1.1 with structured causal fields (planId,
+    // isCausalIntervention, causalVerdict, causalStrength,
+    // manipulatedVariable).
     expect(protocolEvidence.length).toBeGreaterThanOrEqual(2)
+    const original = protocolEvidence[0]!
     const interventionEvidence = protocolEvidence[1]!
+
+    // Original evidence carries planId but NOT the intervention markers.
+    expect(original.planId).toBe('protocol::tshark')
+    expect(original.isCausalIntervention).toBeFalsy()
+    expect(original.causalVerdict).toBeUndefined()
+
+    // Intervention evidence carries the full structured causal payload.
+    expect(interventionEvidence.planId).toBe('protocol::tshark')
+    expect(interventionEvidence.isCausalIntervention).toBe(true)
+    expect(interventionEvidence.causalVerdict).toBeDefined()
+    expect(interventionEvidence.causalStrength).toBeGreaterThanOrEqual(0)
+    expect(interventionEvidence.causalStrength).toBeLessThanOrEqual(1)
+    expect(interventionEvidence.manipulatedVariable).toBe('TLS SNI extension presence')
+
+    // Digest still carries the [CAUSAL ...] human-readable annotation
+    // for audit logs / UI display, but it's no longer the source of truth.
     expect(interventionEvidence.resultDigest).toContain('[CAUSAL')
     expect(interventionEvidence.resultDigest).toContain('TLS SNI extension presence')
   })

@@ -483,8 +483,19 @@ function renderInboxSection(inbox: AgentInbox | undefined): string | null {
 /** One-liner format for an evidence inbox entry. */
 function formatEvidenceLine(ev: ToolEvidence): string {
   const digest = truncateOneLine(ev.resultDigest, EVIDENCE_DIGEST_INLINE_LIMIT)
+  // Causal-intervention rows surface their structured do-calculus
+  // verdict + strength + manipulated variable in a parenthetical so
+  // agents can read it without parsing the digest text.
+  const causalSuffix =
+    ev.isCausalIntervention && ev.causalVerdict !== undefined
+      ? ` [causal=${ev.causalVerdict}, strength=${ev.causalStrength ?? 0}` +
+        (ev.manipulatedVariable
+          ? `, manipulated="${ev.manipulatedVariable}"`
+          : '') +
+        `]`
+      : ''
   return (
-    `- \`${ev.id}\` verdict=**${ev.verdict}** ` +
+    `- \`${ev.id}\` verdict=**${ev.verdict}**${causalSuffix} ` +
     `(round ${ev.round}, agent: \`${ev.agentId}\`, ` +
     `tool: \`${ev.toolName}\`, tested: \`${ev.testedHypothesis}\`) — ${digest}`
   )
