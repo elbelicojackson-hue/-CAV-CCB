@@ -70,23 +70,27 @@ export const DEFAULT_EXPLORATION_WEIGHT = 0.1
 /* -------------------------------------------------------------------------- */
 
 /**
- * Binary entropy H(p) = -p·log₂(p) - (1-p)·log₂(1-p).
- * Returns 0 for p ≤ 0 or p ≥ 1 (certainty = zero entropy).
- */
-export function binaryEntropy(p: number): number {
-  if (p <= 0 || p >= 1) return 0
-  return -(p * Math.log2(p) + (1 - p) * Math.log2(1 - p))
-}
-
-/**
  * Multinomial (Shannon) entropy H(p₁, p₂, ..., pₖ) = -Σ pᵢ·log₂(pᵢ).
  *
- * Generalises binaryEntropy to k-ary hypothesis spaces. When the input
- * has exactly 2 elements summing to 1, this degenerates to binaryEntropy.
+ * The k-ary generalisation of Shannon entropy. When the input has
+ * exactly 2 complementary elements `[p, 1-p]`, this degenerates to the
+ * classic binary entropy.
  *
- * @param probs  Array of probabilities. Must sum to ~1 (tolerance 1e-6).
- *               Values ≤ 0 are skipped (0·log₂(0) = 0 by convention).
- * @returns      Entropy in bits. Returns 0 for empty/degenerate inputs.
+ * Edge cases:
+ *   - empty array → 0 (no uncertainty over an empty event space)
+ *   - any pᵢ ≤ 0 → contribution skipped (0·log₂(0) = 0 by convention)
+ *   - any pᵢ ≥ 1 → contribution skipped (1·log₂(1) = 0)
+ *   - input is NOT required to sum to 1; mass below 1 is treated as
+ *     "missing probability" (no contribution). This makes the function
+ *     robust against rounding without forcing callers to renormalise.
+ *
+ * Used by:
+ *   - {@link binaryEntropy} delegates here for the 2-class case
+ *   - future multi-class hypothesis support (k-ary protocol classes,
+ *     family disambiguation across N candidates, etc.)
+ *
+ * @param probs  Array of probabilities (≥ 0, ≤ 1 each).
+ * @returns      Entropy in bits, always ≥ 0.
  */
 export function multinomialEntropy(probs: readonly number[]): number {
   if (probs.length === 0) return 0
@@ -97,6 +101,22 @@ export function multinomialEntropy(probs: readonly number[]): number {
     entropy -= p * Math.log2(p)
   }
   return Math.max(0, entropy)
+}
+
+/**
+ * Binary entropy H(p) = -p·log₂(p) - (1-p)·log₂(1-p).
+ *
+ * Thin shim over {@link multinomialEntropy} fixed at the 2-class case
+ * `[p, 1-p]`. Returns 0 for p ≤ 0 or p ≥ 1 (certainty = zero entropy).
+ *
+ * Why a delegate rather than the closed-form expression: keeping
+ * `multinomialEntropy` on the hot path means the same code that handles
+ * k-ary protocol-class disambiguation also handles binary packed/unpacked
+ * verdicts, so we have ONE entropy implementation to test and trust.
+ */
+export function binaryEntropy(p: number): number {
+  if (p <= 0 || p >= 1) return 0
+  return multinomialEntropy([p, 1 - p])
 }
 
 /**
